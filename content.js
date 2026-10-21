@@ -4,6 +4,8 @@
 // Alle Lichess-selectors op één plek. Verifiëren op een live partij.
 const SELECTORS = {
   app: '.round__app',
+  // Lichess zet body.playing alleen op de spelerspagina van een lopende partij (niet voor toeschouwers/TV).
+  playing: 'body.playing',
   finished: '.result-wrap',
   moved: ['.ruser-top', '.rclock-top', '.round__app__board', '.rclock-bottom', '.ruser-bottom'],
 };
@@ -38,7 +40,11 @@ function saveSize(win) {
 // --- Detectie ---------------------------------------------------------------
 
 function isLiveGame() {
-  return !!document.querySelector(SELECTORS.app) && !document.querySelector(SELECTORS.finished);
+  return (
+    !!document.querySelector(SELECTORS.playing) &&
+    !!document.querySelector(SELECTORS.app) &&
+    !document.querySelector(SELECTORS.finished)
+  );
 }
 
 // --- PiP --------------------------------------------------------------------
