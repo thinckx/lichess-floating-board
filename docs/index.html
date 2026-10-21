@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floating Board for Lichess</title>
+<meta name="description" content="Play your ongoing Lichess game in a small always-on-top window while you work in other apps.">
+<link rel="icon" href="icon128.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --desk: #e3e8ee;
+    --ink: #1c2633;
+    --muted: #586676;
+    --paper: #ffffff;
+    --chrome: #cbd3dc;
+    --bar: #dde3ea;
+    --light: #f0d9b5;
+    --dark: #b58863;
+    --lastmove: rgba(155, 199, 0, 0.45);
+    --button: #1c2633;
+    --button-ink: #ffffff;
+    --shadow: 0 30px 60px -20px rgba(28, 38, 51, 0.45), 0 12px 24px -12px rgba(28, 38, 51, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --desk: #1a2029;
+      --ink: #e4e9ef;
+      --muted: #9aa7b5;
+      --paper: #252d38;
+      --chrome: #3a4554;
+      --bar: #323c49;
+      --button: #f0d9b5;
+      --button-ink: #1c2633;
+      --shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7), 0 12px 24px -12px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  a { color: inherit; text-underline-offset: 3px; }
+  a:focus-visible, .button:focus-visible { outline: 3px solid var(--dark); outline-offset: 3px; border-radius: 6px; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero ------------------------------------------------------------------ */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 56px;
+    align-items: center;
+    padding: 72px 0 96px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 17px; margin-bottom: 40px; }
+  .brand img { width: 36px; height: 36px; }
+  h1 {
+    font-size: clamp(44px, 6vw, 76px);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    font-weight: 800;
+    font-variation-settings: "opsz" 96;
+    margin: 0 0 24px;
+  }
+  .lede { font-size: 20px; color: var(--muted); max-width: 30em; margin: 0 0 36px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+  .button {
+    display: inline-block;
+    background: var(--button);
+    color: var(--button-ink);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 14px 22px;
+    border-radius: 10px;
+  }
+  .note { font-size: 15px; color: var(--muted); }
+
+  /* Scene: a work window with the floating board on top ------------------- */
+  .scene { position: relative; aspect-ratio: 16 / 12; container-type: inline-size; }
+  .work {
+    position: absolute; inset: 0 12% 14% 0;
+    background: var(--paper);
+    border: 1px solid var(--chrome);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .work-bar { height: 7%; background: var(--bar); border-bottom: 1px solid var(--chrome); }
+  .work-body { padding: 7% 8%; display: grid; gap: 3.2cqi; }
+  .line { height: 1.6cqi; border-radius: 1cqi; background: var(--bar); }
+  .line.title { height: 3cqi; width: 45%; background: var(--chrome); margin-bottom: 1.5cqi; }
+
+  .pip {
+    position: absolute; right: 0; bottom: 0; width: 46%;
+    background: var(--paper);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    font-size: 2.3cqi;
+    animation: lift 700ms cubic-bezier(.2, .8, .2, 1) both;
+  }
+  .pip-bar {
+    display: flex; align-items: center; gap: 1.2cqi;
+    padding: 1cqi 1.8cqi;
+    background: #2b2f36; color: #d6dae0;
+    font-size: 2cqi;
+  }
+  .pip-bar svg { width: 2.4cqi; height: 2.4cqi; }
+  .player { display: flex; justify-content: space-between; align-items: center; padding: 1.1cqi 1.8cqi; }
+  .player b { font-weight: 600; }
+  .clock { font-variant-numeric: tabular-nums; font-weight: 600; padding: 0.3cqi 1.2cqi; border-radius: 0.8cqi; }
+  .clock.running { background: #3d7b3a; color: #fff; }
+
+  .board { position: relative; aspect-ratio: 1; display: grid; grid-template-columns: repeat(8, 1fr); }
+  .sq { background: var(--light); }
+  .sq.d { background: var(--dark); }
+  .sq.hl { box-shadow: inset 0 0 0 100vmax var(--lastmove); }
+  .piece {
+    position: absolute; width: 12.5%; height: 12.5%;
+    display: grid; place-items: center;
+    font-size: 4.4cqi; line-height: 1;
+    font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "DejaVu Sans", serif;
+    color: #1b1b1b;
+    transition: left 600ms cubic-bezier(.4, 0, .2, 1), top 600ms cubic-bezier(.4, 0, .2, 1);
+  }
+  .piece.w { color: #fff; text-shadow: 0 0 1px #000, 0 0 1px #000, 0 0 1px #000, 0 0 1px #000; }
+
+  @keyframes lift {
+    from { opacity: 0; transform: translateY(8%) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* Sections -------------------------------------------------------------- */
+  .moves { padding: 24px 0 88px; }
+  h2 {
+    font-size: clamp(30px, 3.4vw, 42px);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-weight: 800;
+    margin: 0 0 32px;
+  }
+  .movelist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .movelist li { border-top: 2px solid var(--ink); padding-top: 16px; }
+  .movelist .n { font-weight: 800; font-size: 28px; line-height: 1; display: block; margin-bottom: 12px; }
+  .movelist strong { display: block; font-weight: 600; margin-bottom: 4px; }
+  .movelist p { margin: 0; color: var(--muted); font-size: 16px; }
+  kbd { font-family: inherit; font-weight: 600; border: 1px solid var(--chrome); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; background: var(--paper); }
+
+  .promises {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px;
+    padding: 56px 0 72px;
+    border-top: 1px solid var(--chrome);
+  }
+  .promises h3 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
+  .promises p { margin: 0; color: var(--muted); font-size: 16px; max-width: 34em; }
+
+  .install { padding: 0 0 88px; }
+  .install ol { margin: 0; padding-left: 1.3em; color: var(--muted); }
+  .install li { margin-bottom: 6px; }
+  .install code { font-size: 15px; color: var(--ink); }
+
+  footer {
+    border-top: 1px solid var(--chrome);
+    padding: 28px 0 48px;
+    font-size: 15px; color: var(--muted);
+  }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+  footer nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; gap: 48px; padding: 40px 0 64px; }
+    .brand { margin-bottom: 28px; }
+    .movelist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .promises { grid-template-columns: 1fr; gap: 28px; }
+  }
+  @media (max-width: 520px) {
+    body { font-size: 17px; }
+    .wrap { padding: 0 16px; }
+    .lede { font-size: 18px; }
+    .movelist { grid-template-columns: 1fr; gap: 24px; }
+    .pip { width: 58%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pip { animation: none; }
+    .piece { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <div class="brand"><img src="icon128.png" alt="">Floating Board for Lichess</div>
+        <h1>Your game stays on top of your work.</h1>
+        <p class="lede">A Chrome and Edge extension that puts the board and clocks of your ongoing Lichess game in a small window above every other app. Make your move without leaving what you're doing.</p>
+        <div class="actions">
+          <a class="button" href="https://github.com/thinckx/lichess-floating-board">View on GitHub</a>
+          <span class="note">Chrome Web Store listing coming soon</span>
+        </div>
+      </div>
+
+      <div class="scene" aria-label="A floating Lichess board in a small window on top of a document">
+        <div class="work" aria-hidden="true">
+          <div class="work-bar"></div>
+          <div class="work-body">
+            <div class="line title"></div>
+            <div class="line" style="width:92%"></div>
+            <div class="line" style="width:86%"></div>
+            <div class="line" style="width:90%"></div>
+            <div class="line" style="width:60%"></div>
+            <div class="line" style="width:88%"></div>
+            <div class="line" style="width:78%"></div>
+          </div>
+        </div>
+        <div class="pip" aria-hidden="true">
+          <div class="pip-bar">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"/><rect x="8" y="8" width="5" height="3.5" rx=".5" fill="currentColor"/></svg>
+            lichess.org
+          </div>
+          <div class="player"><b>Opponent</b><span class="clock" id="clock-top">2:14:08</span></div>
+          <div class="board" id="board"></div>
+          <div class="player"><b>You</b><span class="clock" id="clock-bottom">1:52:40</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="moves">
+      <h2>Four moves to set it up</h2>
+      <ol class="movelist">
+        <li><span class="n">1.</span><strong>Open your game</strong><p>Start or continue a game you are playing on lichess.org.</p></li>
+        <li><span class="n">2.</span><strong>Click Float board</strong><p>The button sits at the bottom right of the game page. Or press <kbd>Alt</kbd>+<kbd>P</kbd>.</p></li>
+        <li><span class="n">3.</span><strong>Get back to work</strong><p>The board, clocks and names stay on top of every app. Click or drag to move, just like on Lichess.</p></li>
+        <li><span class="n">4.</span><strong>Close it when you're done</strong><p>Everything returns to the Lichess tab, and the game carries on there.</p></li>
+      </ol>
+    </section>
+
+    <section class="promises">
+      <div>
+        <h3>Fair play</h3>
+        <p>It only changes where the board is shown. No engine, no analysis, no move suggestions. Lichess itself keeps running the game.</p>
+      </div>
+      <div>
+        <h3>No data collected</h3>
+        <p>Nothing is tracked or sent anywhere. The only thing saved is the size of the floating window, on your own device. <a href="privacy.html">Read the privacy policy</a>.</p>
+      </div>
+      <div>
+        <h3>Open source</h3>
+        <p>The full code is on GitHub under the MIT license, so you can check every line or help improve it.</p>
+      </div>
+    </section>
+
+    <section class="install">
+      <h2>Install it today</h2>
+      <ol>
+        <li>Download or clone the <a href="https://github.com/thinckx/lichess-floating-board">GitHub repository</a>.</li>
+        <li>Open <code>chrome://extensions</code> and switch on Developer mode.</li>
+        <li>Click Load unpacked and choose the downloaded folder.</li>
+      </ol>
+      <p class="note">Needs Chrome or Edge 116 or newer on desktop.</p>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Independent project, not affiliated with or endorsed by lichess.org.</span>
+    <nav>
+      <a href="https://github.com/thinckx/lichess-floating-board">GitHub</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/thinckx/lichess-floating-board/blob/main/LICENSE">MIT license</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Italiaanse opening na 3.Bc4; zwart antwoordt eenmalig met ...Nf6.
+  const FEN = 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R';
+  const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+  const board = document.getElementById('board');
+  const pieces = {};
+
+  for (let i = 0; i < 64; i++) {
+    const sq = document.createElement('div');
+    sq.className = 'sq' + ((Math.floor(i / 8) + i) % 2 ? ' d' : '');
+    sq.dataset.sq = 'abcdefgh'[i % 8] + (8 - Math.floor(i / 8));
+    board.appendChild(sq);
+  }
+  const place = (el, file, rank) => {
+    el.style.left = `${file * 12.5}%`;
+    el.style.top = `${(7 - rank) * 12.5}%`;
+  };
+  FEN.split('/').forEach((row, r) => {
+    let f = 0;
+    for (const ch of row) {
+      if (/\d/.test(ch)) { f += +ch; continue; }
+      const el = document.createElement('div');
+      el.className = 'piece' + (ch === ch.toUpperCase() ? ' w' : '');
+      el.textContent = GLYPH[ch.toLowerCase()];
+      place(el, f, 7 - r);
+      pieces['abcdefgh'[f] + (8 - r)] = el;
+      board.appendChild(el);
+      f++;
+    }
+  });
+
+  const topClock = document.getElementById('clock-top');
+  const bottomClock = document.getElementById('clock-bottom');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function playNf6() {
+    place(pieces.g8, 5, 5);
+    for (const s of ['g8', 'f6']) board.querySelector(`[data-sq="${s}"]`).classList.add('hl');
+    topClock.classList.remove('running');
+    bottomClock.classList.add('running');
+  }
+
+  if (reduce) {
+    playNf6();
+  } else {
+    topClock.classList.add('running');
+    setTimeout(playNf6, 1600);
+    // Jouw klok loopt zodra je aan zet bent.
+    let seconds = 1 * 3600 + 52 * 60 + 40;
+    setInterval(() => {
+      if (!bottomClock.classList.contains('running')) return;
+      seconds--;
+      const h = Math.floor(seconds / 3600), m = Math.floor(seconds / 60) % 60, s = seconds % 60;
+      bottomClock.textContent = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }, 1000);
+  }
+</script>
+</body>
+</html>
