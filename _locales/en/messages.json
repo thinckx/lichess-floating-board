@@ -1,0 +1,23 @@
+{
+  "name": {
+    "message": "Floating Board for Lichess"
+  },
+  "description": {
+    "message": "Play your ongoing Lichess game in a small always-on-top window while you work in other apps."
+  },
+  "buttonOpen": {
+    "message": "Show the board in a floating window that stays on top (Alt+P)"
+  },
+  "buttonClose": {
+    "message": "Put the board back in this tab (Alt+P)"
+  },
+  "errorUnsupported": {
+    "message": "Floating windows are not supported in this browser (Chrome 116+ required)"
+  },
+  "errorBoardNotFound": {
+    "message": "Board not found. Lichess may have changed its layout."
+  },
+  "buttonLabel": {
+    "message": "Float board"
+  }
+}

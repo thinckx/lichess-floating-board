@@ -1,0 +1,23 @@
+{
+  "name": {
+    "message": "Zwevend bord voor Lichess"
+  },
+  "description": {
+    "message": "Speel je lopende Lichess-partij in een klein venster dat altijd bovenaan blijft, terwijl je in andere apps werkt."
+  },
+  "buttonOpen": {
+    "message": "Toon het bord in een zwevend venster dat altijd bovenaan blijft (Alt+P)"
+  },
+  "buttonClose": {
+    "message": "Zet het bord terug in dit tabblad (Alt+P)"
+  },
+  "errorUnsupported": {
+    "message": "Zwevende vensters worden niet ondersteund in deze browser (Chrome 116+ vereist)"
+  },
+  "errorBoardNotFound": {
+    "message": "Bord niet gevonden. Mogelijk heeft Lichess de pagina gewijzigd."
+  },
+  "buttonLabel": {
+    "message": "Zwevend bord"
+  }
+}
