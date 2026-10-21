@@ -142,15 +142,40 @@ function forwardPointerEvents(win) {
   }
 }
 
-// Chessground meet het bord bij de eerste render te vroeg (0x0, alle stukken op a8). Een
-// echte maatwijziging laat zijn ResizeObserver opnieuw meten; dus kort 1px kleiner en terug.
-// Die observer draait in de hoofdtab en moet elke stap zien: daarom ruime pauzes, geen frames.
-const NUDGE_DELAY = 250;
+// Gekloonde <link>-stylesheets laden asynchroon. Zonder hun CSS heeft het bord geen maat, en als
+// chessground op dat moment meet, belanden alle stukken op één vak. Dus eerst wachten.
+function waitForStyles(doc, timeout = 3000) {
+  const pending = [...doc.querySelectorAll('link[rel=stylesheet]')]
+    .filter(link => !link.sheet)
+    .map(link => new Promise(resolve => {
+      link.addEventListener('load', resolve, { once: true });
+      link.addEventListener('error', resolve, { once: true });
+    }));
+  return Promise.race([Promise.all(pending), new Promise(r => setTimeout(r, timeout))]);
+}
 
-function nudgeBoard(win, root) {
-  const size = root.style.getPropertyValue('--pip-board');
-  setTimeout(() => root.style.setProperty('--pip-board', `${parseInt(size) - 1}px`), NUDGE_DELAY);
-  setTimeout(() => !win.closed && root.style.setProperty('--pip-board', size), NUDGE_DELAY * 2);
+// Vangnet: staan alle stukken toch op dezelfde plek, dan heeft chessground te vroeg gemeten.
+// Een echte maatwijziging laat zijn ResizeObserver (in de hoofdtab) opnieuw meten; herhaal tot het klopt.
+const HEAL_INTERVAL = 300;
+const HEAL_ATTEMPTS = 10;
+
+function piecesMisplaced(root) {
+  const pieces = root.querySelectorAll('cg-board piece');
+  return pieces.length > 1 && new Set([...pieces].map(p => p.style.transform)).size === 1;
+}
+
+function healBoard(win, root) {
+  const size = parseInt(root.style.getPropertyValue('--pip-board'));
+  let attempt = 0;
+  const check = () => {
+    if (win.closed || !piecesMisplaced(root) || attempt >= HEAL_ATTEMPTS) return;
+    attempt++;
+    log('stukken verkeerd geplaatst, opnieuw meten', attempt);
+    root.style.setProperty('--pip-board', `${attempt % 2 ? size - 1 : size}px`);
+    recalcBoard();
+    setTimeout(check, HEAL_INTERVAL);
+  };
+  setTimeout(check, HEAL_INTERVAL);
 }
 
 async function openPip() {
@@ -173,6 +198,7 @@ async function openPip() {
 
   copyStyles(pip.document);
   layoutStyles(pip.document);
+  await waitForStyles(pip.document);
   const board = elements[SELECTORS.moved.indexOf('.round__app__board')];
   const root = mirrorAncestors(pip.document, board);
   // Maat zetten vóór het verplaatsen: chessground meet het bord bij de eerste render in PiP,
@@ -187,7 +213,7 @@ async function openPip() {
   });
 
   fitBoard(pip, root, board);
-  nudgeBoard(pip, root);
+  healBoard(pip, root);
   forwardPointerEvents(pip);
   let resizeTimer;
   pip.addEventListener('resize', () => {
